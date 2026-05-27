@@ -93,6 +93,20 @@ const analysisSchema = {
   required: ["colors", "spacing", "typography", "layoutStructure", "htmlTailwind", "reactTailwind", "sassCode", "css3Code"]
 };
 
+const TIMEOUT_MS = 28_000;
+
+const generateWithTimeout = (
+  params: Parameters<typeof ai.models.generateContent>[0]
+): Promise<GenerateContentResponse> => {
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Request timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
+  );
+  return Promise.race<GenerateContentResponse>([
+    ai.models.generateContent(params),
+    timeoutPromise
+  ]);
+};
+
 // Main analyze route
 app.post("/api/analyze", async (req, res) => {
   try {
@@ -169,23 +183,16 @@ Return a structured JSON output mapping these elements to Tailwind utilities. Pr
 
     contents.push({ text: userPromptText });
 
-    // Send payload using modern generateContent call with the analysis JSON schema
-    const timeoutPromise = new Promise<never>((_, reject) =>
-  setTimeout(() => reject(new Error("Request timed out after 25s")), 25000)
-);
 
-const response = await Promise.race<GenerateContentResponse>([
-  ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: contents,
-    config: {
-      systemInstruction: systemPrompt,
-      responseMimeType: "application/json",
-      responseSchema: analysisSchema
-    }
-  }),
-  timeoutPromise
-]);
+const response = await generateWithTimeout({
+  model: "gemini-2.5-flash",
+  contents: contents,
+  config: {
+    systemInstruction: systemPrompt,
+    responseMimeType: "application/json",
+    responseSchema: analysisSchema
+  }
+});
 
     const responseText = response.text;
     if (!responseText) {
@@ -255,24 +262,17 @@ Component type constraint: ${componentType || "As before"}
 
 Apply this refinement. Preserve the design style. Return updated utility mappings and complete revised responsive snippets for HTML, React TSX, sassCode, and css3Code.`;
 
-    const timeoutPromise = new Promise<never>((_, reject) =>
-  setTimeout(() => reject(new Error("Request timed out after 25s")), 25000)
-);
-
-const response = await Promise.race<GenerateContentResponse>([
-  ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [
-      { text: refinementPrompt }
-    ],
-    config: {
-      systemInstruction: systemPrompt,
-      responseMimeType: "application/json",
-      responseSchema: analysisSchema
-    }
-  }),
-  timeoutPromise
-]);
+    const response = await generateWithTimeout({
+      model: "gemini-2.5-flash",
+      contents: [
+        { text: refinementPrompt }
+      ],
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: analysisSchema
+      }
+    });
 
     const text = response.text;
     if (!text) {
