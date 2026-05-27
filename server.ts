@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Part, Type } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 
 // Load environment variables
@@ -148,7 +148,7 @@ Instructions:
 Analyze its physical colors, hierarchy, gaps, and font elements.
 Return a structured JSON output mapping these elements to Tailwind utilities. Provide standard HTML and React TSX copies that reflect high-fidelity, elegant, and fully functional implementations of this layout, and additionally generate both a structured SASS/SCSS stylesheet and a pure CSS3-only component with native variables.`;
 
-    const contents: any[] = [];
+    const contents: Part[] = [];
 
     // Bundle the base 64 image if uploaded
     if (image && mimeType) {
@@ -170,15 +170,22 @@ Return a structured JSON output mapping these elements to Tailwind utilities. Pr
     contents.push({ text: userPromptText });
 
     // Send payload using modern generateContent call with the analysis JSON schema
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: contents,
-      config: {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-        responseSchema: analysisSchema
-      }
-    });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+  setTimeout(() => reject(new Error("Request timed out after 25s")), 25000)
+);
+
+const response = await Promise.race<GenerateContentResponse>([
+  ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: contents,
+    config: {
+      systemInstruction: systemPrompt,
+      responseMimeType: "application/json",
+      responseSchema: analysisSchema
+    }
+  }),
+  timeoutPromise
+]);
 
     const responseText = response.text;
     if (!responseText) {
@@ -199,7 +206,7 @@ Return a structured JSON output mapping these elements to Tailwind utilities. Pr
 // Iterative code refinement API route
 app.post("/api/refine", async (req, res) => {
   try {
-    const { history, instruction, currentCode, darkModeEnabled, componentType } = req.body;
+    const { instruction, currentCode, darkModeEnabled, componentType } = req.body;
 
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
@@ -248,17 +255,24 @@ Component type constraint: ${componentType || "As before"}
 
 Apply this refinement. Preserve the design style. Return updated utility mappings and complete revised responsive snippets for HTML, React TSX, sassCode, and css3Code.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: [
-        { text: refinementPrompt }
-      ],
-      config: {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-        responseSchema: analysisSchema
-      }
-    });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+  setTimeout(() => reject(new Error("Request timed out after 25s")), 25000)
+);
+
+const response = await Promise.race<GenerateContentResponse>([
+  ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: [
+      { text: refinementPrompt }
+    ],
+    config: {
+      systemInstruction: systemPrompt,
+      responseMimeType: "application/json",
+      responseSchema: analysisSchema
+    }
+  }),
+  timeoutPromise
+]);
 
     const text = response.text;
     if (!text) {
