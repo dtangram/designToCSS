@@ -1,0 +1,6 @@
+{
+  "name": "Design to CSS Code Mapper",
+  "description": "Analyzes mockups, screenshots, or SVG designs and generates matching, highly responsive Tailwind HTML and functional React components with direct visual-to-utility mappings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
