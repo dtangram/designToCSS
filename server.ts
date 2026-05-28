@@ -93,7 +93,7 @@ const analysisSchema = {
   required: ["colors", "spacing", "typography", "layoutStructure", "htmlTailwind", "reactTailwind", "sassCode", "css3Code"]
 };
 
-const TIMEOUT_MS = 28_000;
+const TIMEOUT_MS = process.env.NODE_ENV === "production" ? 28_000 : 60_000;
 
 const generateWithTimeout = (
   params: Parameters<typeof ai.models.generateContent>[0]
@@ -105,6 +105,47 @@ const generateWithTimeout = (
     ai.models.generateContent(params),
     timeoutPromise
   ]);
+};
+
+// Streams whitespace heartbeat bytes to keep the connection alive during long Gemini calls
+const generateWithHeartbeat = async (
+  res: express.Response,
+  params: Parameters<typeof ai.models.generateContent>[0]
+): Promise<GenerateContentResponse> => {
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Transfer-Encoding", "chunked");
+
+  const heartbeat = setInterval(() => res.write(" "), 5000);
+
+  try {
+    return await generateWithTimeout(params);
+  } finally {
+    clearInterval(heartbeat);
+  }
+};
+
+// Builds the content parts array for the analyze route
+const buildAnalysisContents = (
+  image?: string,
+  mimeType?: string,
+  svgContent?: string,
+  userPromptText?: string
+): Part[] => {
+  const contents: Part[] = [];
+
+  if (image && mimeType) {
+    contents.push({ inlineData: { data: image, mimeType } });
+  }
+
+  if (svgContent) {
+    contents.push({
+      text: `--- RAW VALUE SVG TARGET EXTRACT: ---\n${svgContent}\n----------------------`
+    });
+  }
+
+  contents.push({ text: userPromptText ?? "" });
+
+  return contents;
 };
 
 // Main analyze route
@@ -129,6 +170,14 @@ app.post("/api/analyze", async (req, res) => {
     // Set up standard target instructions
     const systemPrompt = `You are an elite Visual UI Architect and Senior Front-End Developer. Your craft is providing visual-to-utility mappings that convert screenshots, design mockups, and SVGs into clean, high-fidelity, and fully responsive code using Tailwind CSS, as well as alternative options like SASS/SCSS and native CSS3.
 
+CRITICAL DIRECTIVE: The generated reproduction MUST resemble the source mockup or SVG with absolute, near-pixel-perfect visual accuracy. Pay extraordinary attention to the following details:
+1. STRICT COLOR FIDELITY: Replicate the precise background gradients, borders, colors, text colors, and shadows using exact matching hex codes (or closest corresponding Tailwind colors).
+2. EXACT SPACING & PROPORTIONS: Match the exact alignment, padding multipliers, margins, gaps, card roundedness, and layout grid columns. Ensure elements are positioned exactly where they are in the mockup.
+3. TYPOGRAPHY PAIRINGS: Replicate the typography weights, font styles (e.g., sans-serif, serif, mono), font-sizes, tracking (letter spacing), and leading (line height) seen in the mockup.
+4. TEXT CONTEXT: Replicate all visual text labels, numbers, and descriptive words verbatim from the mockup (e.g., if the mockup lists specific followers, names, titles, or features, the generated HTML/React/SASS/CSS3 must include these exact values).
+5. MOCK ICONS & AVATARS: Render beautiful, matching SVG inline icons or graphic paths for avatars, icons, badges, indicators, and buttons rather than generic placeholders.
+6. RESPOND IN FLUID WRAPPERS: Center the component in the preview container, matching the dimensions and shape scale of the original mockup (e.g., standard max-w range of 400px - 500px for cards, or full-width for hero banners).
+
 Instructions:
 1. Thoroughly map detected elements to modern typography scales (e.g. font-sans tracking-tight), spacing systems (paddings, margins, flexbox, CSS Grid), and modern color theory.
 2. Formulate exceptionally clean, aesthetic, responsive utility groupings. Make layouts fluid using max widths (e.g., max-w-7xl, mx-auto) so they survive desktop-to-mobile context transitions perfectly using standard flexbox and CSS Grid combinations.
@@ -136,12 +185,16 @@ Instructions:
 4. If an SVG text node is supplied, analyze its XML tags, groups, coordinates, colors, and design properties directly to build an exact code match.
 5. Provide standard mock SVGs for icons directly embedded in the HTML using clean tags, and use proper imports or standard React SVG wrappers in the React block.
 6. The HTML and React components should look visually premium, featuring gorgeous padding rhythm, micro-interactive feedback (hover transitions, active clicks), and beautiful spacing. For React components, make sure to add interactive functional state (e.g. tabs, input forms, disclosure menus, toggles, state hooks) so that users get a fully proto-typed visual model immediately.
-7. For ALL outputs, strictly implement WCAG 2.2 Accessibility guidelines:
+7. Strict Semantic HTML5, Arrow Functions, and Responsive Design (MANDATORY & ABSOLUTE):
+   - You are STRICTLY FORBIDDEN from using any "div" tags of any kind (e.g., <div>, </div>) under both "htmlTailwind" and "reactTailwind" formats! All structural wrappers, panels, cards, containers, grid blocks, and lines must be implemented using semantic HTML5 elements (e.g., <section>, <article>, <main>, <aside>, <header>, <nav>, <footer>, <span className="block">, <details>, <summary>, <figure>, <p>) instead of divs.
+   - For the React TSX component, you are STRICTLY FORBIDDEN from using the 'function' keyword! You must use ES6 arrow functions instead (e.g. const ComponentName = () => { ... }) and place the export default statement at the bottom of the component file (e.g. export default ComponentName;) instead of inline with the component definition.
+   - You MUST build high-quality, mobile-first responsive layouts leveraging dynamic Tailwind breakpoint utilities (such as sm:, md:, lg:, flexible grid-cols columns, flex-direction swaps, responsive padding/gaps) to make sure the generated output looks stellar and scales elegantly on all viewports, from mobile screens to displays.
+8. For ALL outputs, strictly implement WCAG 2.2 Accessibility guidelines:
    - Ensure color combinations strictly pass at least WCAG 2.2 AAA or AA contrast levels (text colors have high contrast against background colors).
-   - Use correct semantic HTML elements (like <main>, <section>, <article>, <header>, navbar <nav>, and proper heading hierarchies h1-h6).
+   - Use correct semantic heading hierarchies h1-h6.
    - Ensure interactive buttons have explicit type="button", and include helpful "aria-label" tags for screen readers.
    - For interactive elements, add highly visible keyboard keyboard focus feedback indicators (such as "focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none" or clean :focus-visible rules in SASS/CSS3 styles).
-8. Under "sassCode", compile a highly structured, valid SASS/SCSS module. You MUST thoroughly employ professional SASS industry features:
+9. Under "sassCode", compile a highly structured, valid SASS/SCSS module. You MUST thoroughly employ professional SASS industry features:
    - Declare explicit, semantic SASS variables (e.g. $primary, $transition-base) representing mock colors, spacing, and typography weights.
    - Use custom SASS mixins with parameters (e.g., dynamic spacing or responsive breakpoints) and placeholder classes (%card-hover, %flex-center) with '@extend' to maximize reusability and avoid duplicate code.
    - Use SASS conditional rules (like '@if' blocks or 'if()' function values) to dynamically apply properties based on dark mode states, sizes, or button emphasis levels.
@@ -162,37 +215,17 @@ Instructions:
 Analyze its physical colors, hierarchy, gaps, and font elements.
 Return a structured JSON output mapping these elements to Tailwind utilities. Provide standard HTML and React TSX copies that reflect high-fidelity, elegant, and fully functional implementations of this layout, and additionally generate both a structured SASS/SCSS stylesheet and a pure CSS3-only component with native variables.`;
 
-    const contents: Part[] = [];
+    const contents = buildAnalysisContents(image, mimeType, svgContent, userPromptText);
 
-    // Bundle the base 64 image if uploaded
-    if (image && mimeType) {
-      contents.push({
-        inlineData: {
-          data: image,
-          mimeType: mimeType
-        }
-      });
-    }
-
-    // Include the raw SVG string as a text payload block to guarantee 100% reading fidelity
-    if (svgContent) {
-      contents.push({
-        text: `--- RAW VALUE SVG TARGET EXTRACT: ---\n${svgContent}\n----------------------`
-      });
-    }
-
-    contents.push({ text: userPromptText });
-
-
-const response = await generateWithTimeout({
-  model: "gemini-2.5-flash",
-  contents: contents,
-  config: {
-    systemInstruction: systemPrompt,
-    responseMimeType: "application/json",
-    responseSchema: analysisSchema
-  }
-});
+    const response = await generateWithHeartbeat(res, {
+      model: "gemini-2.5-flash",
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: analysisSchema
+      }
+    });
 
     const responseText = response.text;
     if (!responseText) {
@@ -200,13 +233,11 @@ const response = await generateWithTimeout({
     }
 
     const payload = JSON.parse(responseText.trim());
-    return res.json(payload);
-  } catch (error: any) {
+    return res.end(JSON.stringify(payload));
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "An unexpected error occurred during design parsing.";
     console.error("Analysis api error:", error);
-    return res.status(500).json({
-      error: "Analysis Failed",
-      message: error.message || "An unexpected error occurred during design parsing."
-    });
+    return res.status(500).json({ error: "Analysis Failed", message });
   }
 });
 
@@ -222,16 +253,22 @@ app.post("/api/refine", async (req, res) => {
       });
     }
 
-    const systemPrompt = `You are a visual design refiner. You take a current design generated from mockups, and apply descriptive user updates (e.g., "Add more padding to buttons", "Make the background gradient darker", "Convert this card into a three-column grid layout") while preserving the visual identity and aesthetic value of the original component.
+    const systemPrompt = `You are a visual design refiner. You take a current design generated from mockups, and apply descriptive user updates (e.g., "Add more padding to buttons", "Make the background gradient darker", "Convert this card into a three-column grid layout") while preserving the visual identity, precise layout proportions, verbatim text strings, and original color schemes of the original component.
     
+CRITICAL DIRECTIVE: Maintain extreme visual likeness and pixel-perfect resemblance to the target layout at all times. Replicate physical details of text labels, metrics, custom SVG icons, rounded boundaries, gradients, and spacings verbatim unless explicitly told to modify them.
+
 Make sure to generate visual-to-utility mappings matching the refined code, and return a structured JSON output reflecting these visual updates across all format options: Tailwind HTML, React Component, SASS/SCSS, and CSS3 with variables. Please verify that dark-mode utilities are correctly applied to the revised tags if requested.
 
 When updating the style formats, adhere strictly to these industry code standards:
-1. WCAG 2.2 Accessibility:
+1. Pure Semantic HTML5, Arrow Functions, & Responsive Design (MANDATORY & ABSOLUTE):
+   - You are STRICTLY FORBIDDEN from using any "div" tags of any kind (e.g., <div>, </div>) under both "htmlTailwind" and "reactTailwind" formats! All structural wrappers, container elements, card layouts, line separators, grid columns, and utility panels must be completely styled using semantic HTML5 elements (e.g., <main>, <section>, <article>, <aside>, <header>, <nav>, <footer>, <span className="block">, <details>, <summary>, <figure>, <time>) instead of generic <div> nodes.
+   - For the React TSX component, you are STRICTLY FORBIDDEN from using the 'function' keyword! You must use ES6 arrow functions instead (e.g. const ComponentName = () => { ... }) and place the export default statement at the bottom of the component file (e.g. export default ComponentName;) instead of inline with the component definition.
+   - You MUST build exceptionally clean, mobile-first responsive layout flows leveraging dynamic Tailwind width markers, responsive breakpoints (sm:, md:, lg:), flex swaps (flex-col md:flex-row), and responsive spacing adjustments ensuring perfect adaptivity.
+2. WCAG 2.2 Accessibility:
    - Color contrast ratios must strictly pass WCAG AA/AAA level.
-   - Use semantic tags such as <main>, <header>, <section>, headings h1-h6.
+   - Use correct semantic heading hierarchies h1-h6.
    - Attach explicit "aria-label", "aria-expanded", keyboard focused states such as outline focus rings.
-2. SASS/SCSS files:
+3. SASS/SCSS files:
    - Always use SASS Variables ($name: value) for main colors, fonts, margins.
    - Use placeholding base rules (%name) with '@extend' and parameterized '@mixins' for responsive styles/flex/grid patterns.
    - Employ logical sass conditional control structures (using '@if' conditions or 'if()' valuations) to modify properties without duplicating stylesheet lines.
@@ -262,11 +299,9 @@ Component type constraint: ${componentType || "As before"}
 
 Apply this refinement. Preserve the design style. Return updated utility mappings and complete revised responsive snippets for HTML, React TSX, sassCode, and css3Code.`;
 
-    const response = await generateWithTimeout({
+    const response = await generateWithHeartbeat(res, {
       model: "gemini-2.5-flash",
-      contents: [
-        { text: refinementPrompt }
-      ],
+      contents: [{ text: refinementPrompt }],
       config: {
         systemInstruction: systemPrompt,
         responseMimeType: "application/json",
@@ -280,13 +315,11 @@ Apply this refinement. Preserve the design style. Return updated utility mapping
     }
 
     const payload = JSON.parse(text.trim());
-    return res.json(payload);
-  } catch (err: any) {
+    return res.end(JSON.stringify(payload));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "An unexpected error occurred during iterative code update.";
     console.error("Refinement api error:", err);
-    return res.status(500).json({
-      error: "Refinement Failed",
-      message: err.message || "An unexpected error occurred during iterative code update."
-    });
+    return res.status(500).json({ error: "Refinement Failed", message });
   }
 });
 

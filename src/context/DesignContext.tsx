@@ -52,7 +52,7 @@ export interface DesignContextType {
   processFile: (file: File) => void;
   handleSvgTextInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleClearUpload: () => void;
-  triggerVisualMapping: () => Promise<void>;
+  triggerVisualMapping: (format?: "css" | "sass" | "tailwind") => Promise<void>;
   sendRefinementPrompt: (e: React.FormEvent) => Promise<void>;
   getIframeSource: () => string;
 }
@@ -105,6 +105,11 @@ const DesignProvider = ({ children }: DesignProviderProps) => {
   useEffect(() => {
     handleSelectPreset(PRESETS[0]);
   }, []);
+
+  // Track rendering preferences and input source updates to clear out stale mappings
+  useEffect(() => {
+    setAnalysisResult(null);
+  }, [imageData?.preview, svgContent, componentType, darkModeEnabled, colorPaletteLimit]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -225,7 +230,7 @@ const DesignProvider = ({ children }: DesignProviderProps) => {
     setError(null);
   };
 
-  const triggerVisualMapping = async () => {
+  const triggerVisualMapping = async (format?: "css" | "sass" | "tailwind") => {
     if (!imageData && !svgContent) {
       setError({
         message: "Source Element Required",
@@ -244,7 +249,14 @@ const DesignProvider = ({ children }: DesignProviderProps) => {
     await new Promise((resolve) => setTimeout(resolve, 800));
     setAnalysisProgress("Extracting typography metrics & color schemas...");
     await new Promise((resolve) => setTimeout(resolve, 800));
-    setAnalysisProgress("Generating robust Tailwind CSS components...");
+
+    let progressMessage = "Generating robust Tailwind CSS components...";
+    if (format === "css") {
+      progressMessage = "Generating robust CSS...";
+    } else if (format === "sass") {
+      progressMessage = "Generating robust SASS...";
+    }
+    setAnalysisProgress(progressMessage);
 
     try {
       const payload = {

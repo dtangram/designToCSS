@@ -91,71 +91,88 @@ const TuningPanel = () => {
             </button>
           </span>
 
-          {/* Alternate format quick toggles */}
-          <span className="col-span-2 border-t border-slate-100 pt-3">
-            <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Alternate Style Mapping Outputs</span>
-            <span className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("sass");
-                  if (!analysisResult) {
-                    triggerVisualMapping();
-                  }
-                }}
-                className={`py-2 px-2.5 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:outline-hidden ${
-                  activeTab === "sass"
-                    ? "bg-pink-50 border-pink-200 text-pink-700 shadow-sm"
-                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                }`}
-                title={analysisResult ? "View compiled SASS Variables & Rules" : "Analyze and map style directly to SASS format"}
-                aria-label="View or generate SASS output"
-              >
-                <Sliders className="w-3.5 h-3.5 text-pink-500" /> SASS / SCSS
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("html");
-                  if (!analysisResult) {
-                    triggerVisualMapping();
-                  }
-                }}
-                className={`py-2 px-2.5 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-550 focus-visible:outline-hidden ${
-                  activeTab === "html"
-                    ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm"
-                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                }`}
-                title={analysisResult ? "View compiled Tailwind HTML code" : "Analyze and map style directly to Tailwind format"}
-                aria-label="View or generate Tailwind HTML output"
-              >
-                <FileCode className="w-3.5 h-3.5 text-indigo-500" /> Tailwind HTML
-              </button>
-            </span>
-          </span>
-
         </section>
 
-        {/* Execute Button */}
-        <button
-          type="button"
-          onClick={triggerVisualMapping}
-          disabled={analyzing || (!imageData && !svgContent)}
-          className="w-full py-3 px-4 rounded-xl text-white font-bold text-sm bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-200 disabled:text-slate-400 border border-cyan-700/10 shadow-md shadow-cyan-600/10 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-hidden"
-          aria-label={analyzing ? "Analyzing designer layers and elements" : "Convert imported design model to clean CSS3 components"}
-        >
-          {analyzing ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Analyzing CSS3 Layout...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              Map Design to CSS3
-            </>
-          )}
-        </button>
+        {/* Style Mapping Outputs - Three identical same-line buttons */}
+        <section className="border-t border-slate-100 pt-3 flex flex-col gap-2">
+          <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Style Mapping Outputs</span>
+          <div className="grid grid-cols-3 gap-2 w-full">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("sass");
+                if (!analysisResult) {
+                  triggerVisualMapping("sass");
+                }
+              }}
+              disabled={analyzing || (!imageData && !svgContent)}
+              className={`py-3 px-2 rounded-xl text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-hidden border border-cyan-700/10 ${
+                activeTab === "sass"
+                  ? "bg-cyan-700 shadow-inner scale-[0.98] border-b-2 border-cyan-800 font-extrabold"
+                  : "bg-cyan-600 hover:bg-cyan-700 shadow-md shadow-cyan-600/10"
+              } disabled:bg-slate-200 disabled:text-slate-400 disabled:border-slate-300 disabled:shadow-none`}
+              title={analysisResult ? "View SASS Code" : "Analyze and map style to SASS"}
+              aria-label="Generate or view SASS"
+            >
+              {analyzing && activeTab === "sass" ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+              ) : (
+                <Sliders className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
+              )}
+              <span className="truncate">SASS/SCSS</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("html");
+                if (!analysisResult) {
+                  triggerVisualMapping("tailwind");
+                }
+              }}
+              disabled={analyzing || (!imageData && !svgContent)}
+              className={`py-3 px-2 rounded-xl text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-hidden border border-cyan-700/10 ${
+                activeTab === "html"
+                  ? "bg-cyan-700 shadow-inner scale-[0.98] border-b-2 border-cyan-800 font-extrabold"
+                  : "bg-cyan-600 hover:bg-cyan-700 shadow-md shadow-cyan-600/10"
+              } disabled:bg-slate-200 disabled:text-slate-400 disabled:border-slate-300 disabled:shadow-none`}
+              title={analysisResult ? "View Tailwind HTML" : "Analyze and map style to Tailwind"}
+              aria-label="Generate or view Tailwind"
+            >
+              {analyzing && activeTab === "html" ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+              ) : (
+                <FileCode className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
+              )}
+              <span className="truncate">Tailwind</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("css3");
+                if (!analysisResult) {
+                  triggerVisualMapping("css");
+                }
+              }}
+              disabled={analyzing || (!imageData && !svgContent)}
+              className={`py-3 px-2 rounded-xl text-white font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-hidden border border-cyan-700/10 ${
+                activeTab === "css3"
+                  ? "bg-cyan-700 shadow-inner scale-[0.98] border-b-2 border-cyan-800 font-extrabold"
+                  : "bg-cyan-600 hover:bg-cyan-700 shadow-md shadow-cyan-600/10"
+              } disabled:bg-slate-200 disabled:text-slate-400 disabled:border-slate-300 disabled:shadow-none`}
+              title={analysisResult ? "View CSS3 Code" : "Analyze and map style to CSS3"}
+              aria-label="Generate or view CSS3"
+            >
+              {analyzing && activeTab === "css3" ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
+              )}
+              <span className="truncate">CSS3</span>
+            </button>
+          </div>
+        </section>
       </fieldset>
 
       {/* Staged Load Screen */}
