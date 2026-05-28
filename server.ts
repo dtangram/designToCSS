@@ -93,7 +93,7 @@ const analysisSchema = {
   required: ["colors", "spacing", "typography", "layoutStructure", "htmlTailwind", "reactTailwind", "sassCode", "css3Code"]
 };
 
-const TIMEOUT_MS = process.env.NODE_ENV === "production" ? 28_000 : 60_000;
+const TIMEOUT_MS = 60_000;
 
 const generateWithTimeout = (
   params: Parameters<typeof ai.models.generateContent>[0]
