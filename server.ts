@@ -223,7 +223,8 @@ Return a structured JSON output mapping these elements to Tailwind utilities. Pr
       config: {
         systemInstruction: systemPrompt,
         responseMimeType: "application/json",
-        responseSchema: analysisSchema
+        responseSchema: analysisSchema,
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
 
@@ -237,6 +238,9 @@ Return a structured JSON output mapping these elements to Tailwind utilities. Pr
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "An unexpected error occurred during design parsing.";
     console.error("Analysis api error:", error);
+    if (res.headersSent) {
+      return res.end(JSON.stringify({ error: "Analysis Failed", message }));
+    }
     return res.status(500).json({ error: "Analysis Failed", message });
   }
 });
@@ -305,7 +309,8 @@ Apply this refinement. Preserve the design style. Return updated utility mapping
       config: {
         systemInstruction: systemPrompt,
         responseMimeType: "application/json",
-        responseSchema: analysisSchema
+        responseSchema: analysisSchema,
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
 
@@ -319,6 +324,9 @@ Apply this refinement. Preserve the design style. Return updated utility mapping
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "An unexpected error occurred during iterative code update.";
     console.error("Refinement api error:", err);
+    if (res.headersSent) {
+      return res.end(JSON.stringify({ error: "Refinement Failed", message }));
+    }
     return res.status(500).json({ error: "Refinement Failed", message });
   }
 });
